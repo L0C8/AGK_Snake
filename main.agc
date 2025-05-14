@@ -1,20 +1,22 @@
 // Set up the window and display
 SetWindowTitle("Snake Game")
 SetWindowSize(800, 600, 0)
-SetVirtualResolution(40, 30) 			// Grid-based resolution (40x30 tiles)
-SetSyncRate(10, 0) 						// 10 FPS for smooth movement
+SetVirtualResolution(40, 30)            // Grid-based resolution (40x30 tiles)
+SetSyncRate(10, 0)                      // 10 FPS for smooth movement
 
 // Snake properties
-global snakeX as integer[100] 			// Array for snake X positions
-global snakeY as integer[100] 			// Array for snake Y positions
-global snakeLength as integer = 3 		// Initial length
-global direction as integer = 0 		// 0:right, 1:down, 2:left, 3:up
-global foodX as integer 				// Food position X
-global foodY as integer 				// Food position Y
+global snakeX as integer[100]           // Array for snake X positions
+global snakeY as integer[100]           // Array for snake Y positions
+global snakeLength as integer = 3       // Initial length
+global direction as integer = 0         // 0:right, 1:down, 2:left, 3:up
+global foodX as integer                 // Food position X
+global foodY as integer                 // Food position Y
 global score as integer = 0
 global gameOver as integer = 0
-global snakeSprite as integer 			// Declare without initialization
-global foodSprite as integer 			// Declare without initialization
+global snakeSprite as integer           // Declare without initialization
+global foodSprite as integer            // Declare without initialization
+global highScore as integer = 0        	// High score variable
+global gameState as integer = 0        	// NEW: 0=start screen, 1=playing, 2=game over
 
 // Initialize snake starting position
 snakeX[0] = 10
@@ -22,22 +24,46 @@ snakeY[0] = 10
 for i = 1 to snakeLength - 1
     snakeX[i] = snakeX[0] - i
     snakeY[i] = snakeY[0]
-next i
+next i // Loop to set initial snake segments
+
+// Load high score from file
+OpenToRead(1, "highscore.txt") // Call OpenToRead without assignment
+if GetFileSize(1) > 0 // Check if file is open and has data
+    highScore = ReadInteger(1)
+    CloseFile(1)
+else
+    highScore = 0 // File doesn't exist or is empty, set default
+    CloseFile(1) // Close in case it was opened
+    Print("No high score file found, starting with 0")
+endif
+Print("High score file path: " + GetWritePath() + "highscore.txt") // Show file path
 
 // Place initial food
 SpawnFood()
 
 // Create sprites for visuals
-snakeSprite = CreateSprite(0) 					// Initialize here
-SetSpriteColor(snakeSprite, 0, 255, 0, 255) 	// Green snake
-SetSpriteSize(snakeSprite, 1, 1) 				// 1x1 tile
-foodSprite = CreateSprite(0) 					// Initialize here
-SetSpriteColor(foodSprite, 255, 0, 0, 255) 		// Red food
+snakeSprite = CreateSprite(0)                   // Initialize here
+SetSpriteColor(snakeSprite, 0, 255, 0, 255)     // Green snake
+SetSpriteSize(snakeSprite, 1, 1)                // 1x1 tile
+foodSprite = CreateSprite(0)                    // Initialize here
+SetSpriteColor(foodSprite, 255, 0, 0, 255)      // Red food
 SetSpriteSize(foodSprite, 1, 1)
 
 // Main game loop
 do
-    if gameOver = 0
+    ClearScreen() // NEW: Clear screen for all states
+    if gameState = 0 // NEW: Start screen
+        Print("Snake Game")
+        Print("High Score: " + Str(highScore))
+        Print("Press any key to start")
+        // Check for any key press
+        for i = 0 to 255
+            if GetRawKeyPressed(i)
+                gameState = 1 // Start playing
+                exit
+            endif
+        next i
+    elseif gameState = 1 // Playing
         // Handle input
         if GetRawKeyPressed(37) and direction <> 0 
             direction = 2
@@ -63,13 +89,29 @@ do
 
         // Check boundary collision
         if snakeX[0] < 0 or snakeX[0] >= 40 or snakeY[0] < 0 or snakeY[0] >= 30
-            gameOver = 1
+            gameState = 2 // NEW: Set to game over state
+            // Update high score if current score is higher
+            if score > highScore
+                highScore = score
+                OpenToWrite(1, "highscore.txt")
+                WriteInteger(1, highScore)
+                CloseFile(1)
+                Print("High score saved: " + Str(highScore))
+            endif
         endif
 
         // Check self collision
         for i = 1 to snakeLength - 1
             if snakeX[0] = snakeX[i] and snakeY[0] = snakeY[i]
-                gameOver = 1
+                gameState = 2 // NEW: Set to game over state
+                // Update high score if current score is higher
+                if score > highScore
+                    highScore = score
+                    OpenToWrite(1, "highscore.txt")
+                    WriteInteger(1, highScore)
+                    CloseFile(1)
+                    Print("High score saved: " + Str(highScore))
+                endif
             endif
         next i
 
@@ -81,7 +123,6 @@ do
         endif
 
         // Draw snake
-        ClearScreen()
         for i = 0 to snakeLength - 1
             SetSpritePosition(snakeSprite, snakeX[i], snakeY[i])
             DrawSprite(snakeSprite)
@@ -93,12 +134,14 @@ do
 
         // Display score
         Print("Score: " + Str(score))
-    else
-        // Game over screen
+        Print("High Score: " + Str(highScore))
+    elseif gameState = 2 // Game over
         Print("Game Over! Score: " + Str(score))
+        Print("High Score: " + Str(highScore))
         Print("Press Space to Restart")
         if GetRawKeyPressed(32) 
             RestartGame()
+            gameState = 1 // NEW: Return to playing state
         endif
     endif
 
@@ -128,7 +171,7 @@ function RestartGame()
     snakeLength = 3
     direction = 0
     score = 0
-    gameOver = 0
+    gameState = 1 // NEW: Set to playing state
     snakeX[0] = 10
     snakeY[0] = 10
     for i = 1 to snakeLength - 1
